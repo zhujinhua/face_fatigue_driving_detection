@@ -5,7 +5,7 @@ from PIL import Image
 import traceback
 import os
 
-DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
+DATA_ROOT = '../CelebA'
 # 图像
 img_dir = os.path.join(DATA_ROOT, 'Img/img_celeba')
 # 框的标注
