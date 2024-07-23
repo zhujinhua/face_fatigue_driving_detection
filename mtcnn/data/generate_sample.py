@@ -5,7 +5,7 @@ from PIL import Image
 import traceback
 import os
 
-DATA_ROOT = '../CelebA'
+DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 # 图像
 img_dir = os.path.join(DATA_ROOT, 'Img/img_celeba')
 # 框的标注
@@ -32,6 +32,7 @@ def gen_sample(face_size, stop_value):
     for dir_path in [positive_img_dir, negative_img_dir, part_img_dir]:
         if not os.path.exists(dir_path):
             # 递归创建目录
+
             os.makedirs(dir_path)
 
     # 创建保存标签的文件，并打开文件

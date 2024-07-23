@@ -1,0 +1,8 @@
+names:
+- closed_eye
+- open_eye
+- closed_mouth
+- open_mouth
+nc: 4
+train: paths/train_images.txt
+val: paths/val_images.txt
