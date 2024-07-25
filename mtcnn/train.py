@@ -31,7 +31,7 @@ class Trainer:
 
     def train(self, stop_value, landmark=False):
         """
-            - 断点续传 --> 短点续训
+            - 断点续传 --> 断点续训
             - transfer learning 迁移学习
             - pretrained model 预训练
 
@@ -155,10 +155,10 @@ class Trainer:
             # 设定误差限制（此处有错误！！！用测试集上的平均损失，不能用训练集上的当前批次的损失）
             if loss < stop_value:
                 break
-            plt.figure()
-            plt.plot(range(len(all_losses)), all_losses, label='Average Loss')
-            plt.xlabel('Epochs')
-            plt.ylabel('Loss')
-            plt.title('Training Loss Curve')
-            plt.legend()
-            plt.show()
+        plt.figure()
+        plt.plot(range(len(all_losses)), all_losses, label='Average Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title('Training Loss Curve')
+        plt.legend()
+        plt.show()

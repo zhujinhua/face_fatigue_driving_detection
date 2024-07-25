@@ -1,3 +1,5 @@
+import time
+
 import nets
 import os
 import train
@@ -7,6 +9,9 @@ if __name__ == '__main__':
     data_path = r"test_data/MTCNN/48"
     if not os.path.exists("param"):
         os.makedirs("param")
+    begin = time.time()
     net = nets.ONet()
     t = train.Trainer(net, param_path, data_path)
     t.train(0.001, landmark=True)
+    end = time.time()
+    print('ONet training time: %s' % (end - begin))

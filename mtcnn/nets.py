@@ -184,11 +184,11 @@ class ONet(nn.Module):
             nn.PReLU(128),
         )
         self.feature_fusion_stage1_2 = FeatureFusion(32, 64, 64)
-        self.feature_fusion_stage3_4 = FeatureFusion(128, 64, 128)
-        self.channel_attention = ChannelAttention(128)
+        self.feature_fusion_stage3_4 = FeatureFusion(64, 128, 128)
+        self.channel_attention = ChannelAttention(128 + 256)  # Update to match concatenated channel count
         self.linear5 = nn.Sequential(
-            nn.Linear(128 * 3 * 3, 256),
-            nn.PReLU(num_parameters=256, init=0.25)
+            nn.Linear(384*23*23, 256),
+            nn.PReLU(256)
         )
 
         # 类别
@@ -199,15 +199,27 @@ class ONet(nn.Module):
         self.linear6_3 = nn.Linear(in_features=256, out_features=10)
 
     def forward(self, x):
-        x1 = self.pre_layer(x)
-        x2 = x1
-        x = self.feature_fusion(x1, x2)
-        x = self.channel_attention(x)
-        x = x.view(-1, 128 * 3 * 3)
+        x1 = self.feature_extractor_stage1(x)
+        x2 = self.feature_extractor_stage2(x1)
+        x3 = self.feature_extractor_stage3(x2)
+        x4 = self.feature_extractor_stage4(x3)
+
+        x_fused1 = self.feature_fusion_stage1_2(x1, x2)
+        x_fused2 = self.feature_fusion_stage3_4(x3, x4)
+        # Resize x_fused2 to match the spatial dimensions of x_fused1
+        x_fused2 = F.interpolate(x_fused2, size=(x_fused1.size(2), x_fused1.size(3)), mode='bilinear',
+                                 align_corners=False)
+
+        # Concatenate the feature maps from both fusion stages
+        x_fused = torch.cat((x_fused1, x_fused2), dim=1)
+        x = self.channel_attention(x_fused)
+        # Flatten the tensor to match the input size of the linear layer
+        x = x.view(x.size(0), -1)
         x = self.linear5(x)
         probs = torch.sigmoid(self.linear6_1(x))
         offset = self.linear6_2(x)
         points = self.linear6_3(x)
+
         return probs, offset, points
 
 
