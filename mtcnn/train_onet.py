@@ -3,7 +3,7 @@ import os
 import train
 
 if __name__ == '__main__':
-    param_path = r"param1/o_net.pt"
+    param_path = r"param/o_net.pt"
     data_path = r"test_data/MTCNN/48"
     if not os.path.exists("param"):
         os.makedirs("param")

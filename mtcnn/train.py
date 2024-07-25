@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import DataLoader
 from data.face_dataset import FaceDataset
 import os
+import matplotlib.pyplot as plt
 
 
 class Trainer:
@@ -50,9 +51,11 @@ class Trainer:
         dataloader = DataLoader(self.datasets, batch_size=32, shuffle=True)
 
         epochs = 0
+        all_losses = []
 
         while True:
             # 训练一轮
+            epoch_losses = []
             for i, (img_data, _cls, _offset, _point) in enumerate(dataloader):
 
                 # 数据搬家 [32, 3, 12, 12]
@@ -117,7 +120,6 @@ class Trainer:
                 else:
                     # P-Net和R-Net 的 最终损失！！！！！！！
                     loss = cls_loss + offset_loss
-
                 if landmark:
                     # dataloader.set_description(
                     #     "epochs:{}, loss:{:.4f}, cls_loss:{:.4f}, offset_loss:{:.4f}, point_loss:{:.4f}".format(
@@ -139,7 +141,11 @@ class Trainer:
 
                 # 优化
                 self.optimizer.step()
-
+                epoch_losses.append(loss.item())
+            # 计算每轮平均损失
+            avg_loss = sum(epoch_losses) / len(epoch_losses)
+            all_losses.append(avg_loss)
+            print(f"epoch: {epochs}, loss: {avg_loss:.4f}")
             # 保存模型（参数）
             torch.save(self.net.state_dict(), self.param_path)
 
@@ -149,3 +155,10 @@ class Trainer:
             # 设定误差限制（此处有错误！！！用测试集上的平均损失，不能用训练集上的当前批次的损失）
             if loss < stop_value:
                 break
+            plt.figure()
+            plt.plot(range(len(all_losses)), all_losses, label='Average Loss')
+            plt.xlabel('Epochs')
+            plt.ylabel('Loss')
+            plt.title('Training Loss Curve')
+            plt.legend()
+            plt.show()

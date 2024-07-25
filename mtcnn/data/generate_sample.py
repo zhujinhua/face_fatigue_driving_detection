@@ -5,7 +5,7 @@ from PIL import Image
 import traceback
 import os
 
-DATA_ROOT = '../CelebA'
+DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 # 图像
 img_dir = os.path.join(DATA_ROOT, 'Img/img_celeba')
 # 框的标注
@@ -208,8 +208,8 @@ def gen_sample(face_size, stop_value):
 if __name__ == '__main__':
     # 100000
     # P-Net
-    gen_sample(12, 5000)
+    gen_sample(12, 6000)
     # R-Net
-    gen_sample(24, 5000)
+    gen_sample(24, 6000)
     # O-Net
-    gen_sample(48, 5000)
+    gen_sample(48, 6000)
