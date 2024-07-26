@@ -19,6 +19,7 @@ from mtcnn.api import tool, nets
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 class Detector(object):
     def __init__(self,
                  pnet_path,
@@ -352,36 +353,58 @@ def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
         return torch.empty(0)
 
     img = cv2.imread(image_path)
-    cropped_images = []
+    height, width, _ = img.shape
+    final_box = select_closest_to_center_box(onet_boxes, width, height)
+    if len(final_box) == 0:
+        return torch.empty(0)
+    x1 = int(final_box[0])
+    y1 = int(final_box[1])
+    x2 = int(final_box[2])
+    y2 = int(final_box[3])
 
-    for box in onet_boxes:
-        x1 = int(box[0])
-        y1 = int(box[1])
-        x2 = int(box[2])
-        y2 = int(box[3])
+    # Crop the detected face
+    cropped_img = img[y1:y2, x1:x2]
+    cropped_img = cv2.resize(cropped_img, target_size)
+    # Convert the cropped image to tensor
+    cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
+    cropped_img = Image.fromarray(cropped_img)
+    cropped_img_tensor = transforms.ToTensor()(cropped_img)
 
-        # Crop the detected face
-        cropped_img = img[y1:y2, x1:x2]
-        cropped_img = cv2.resize(cropped_img, target_size)
-        # Convert the cropped image to tensor
-        cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
-        cropped_img = Image.fromarray(cropped_img)
-        cropped_img_tensor = transforms.ToTensor()(cropped_img)
-        cropped_images.append(cropped_img_tensor)
-
-        # Draw rectangle and landmarks (for visualization, optional)
-        cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
-        for i in range(5, 15, 2):
-            cv2.circle(img, (int(box[i]), int(box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
+    # Draw rectangle and landmarks (for visualization, optional)
+    cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
+    for i in range(5, 15, 2):
+        cv2.circle(img, (int(final_box[i]), int(final_box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
     # cv2.imshow("img", img)
     # cv2.waitKey(0)
-    # Stack cropped images into a single tensor
-    if cropped_images:
-        cropped_images_tensor = torch.stack(cropped_images)
-    else:
-        cropped_images_tensor = torch.empty(0)
-    # [batch_size, channels, height, weight]
-    return cropped_images_tensor
+    # [channels, height, weight]
+    return cropped_img_tensor
+
+
+def select_largest_box(boxes):
+    if len(boxes) == 0:
+        return None
+
+    # 计算每个框的面积
+    areas = [(box[2] - box[0]) * (box[3] - box[1]) for box in boxes]
+    max_area_index = np.argmax(areas)
+    return boxes[max_area_index]
+
+
+def select_closest_to_center_box(boxes, image_width, image_height):
+    if len(boxes) == 0:
+        return None
+
+    # 计算每个框的中心点
+    centers = [((box[0] + box[2]) / 2, (box[1] + box[3]) / 2) for box in boxes]
+
+    image_center = [image_width / 2, image_height / 2]
+
+    # 计算每个框中心点到图像中心的距离
+    distances = [np.linalg.norm(np.array(center) - np.array(image_center)) for center in centers]
+
+    # 找到距离最小的框
+    min_distance_index = np.argmin(distances)
+    return boxes[min_distance_index]
 
 
 def get_detect_face(img_path, target_size=(48, 48)):
@@ -394,5 +417,5 @@ def get_detect_face(img_path, target_size=(48, 48)):
 
 if __name__ == '__main__':
     img_path = r"./10.jpg"
-    cropped_images_tensor = get_detect_face(img_path)
-    print(cropped_images_tensor.shape)
+    cropped_img_tensor = get_detect_face(img_path)
+    print(cropped_img_tensor.shape)
