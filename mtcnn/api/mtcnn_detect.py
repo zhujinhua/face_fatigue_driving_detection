@@ -3,6 +3,7 @@ Author: jhzhu
 Date: 2024/7/26
 Description: 
 """
+import os.path
 import time
 
 import cv2
@@ -16,7 +17,7 @@ from mtcnn.api import tool, nets
 
 # 检测是否有GPU
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
-
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 class Detector(object):
     def __init__(self,
@@ -384,7 +385,10 @@ def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
 
 
 def get_detect_face(img_path):
-    detector = Detector("../param/p_net.pt", "../param/r_net.pt", "../param/o_net.pt")
+    param_path = os.path.join(CURRENT_DIR, '..', 'param')
+    detector = Detector(os.path.join(param_path, 'p_net.pt'),
+                        os.path.join(param_path, 'r_net.pt'),
+                        os.path.join(param_path, 'o_net.pt'))
     return crop_detected_boxes(img_path, detector)
 
 
