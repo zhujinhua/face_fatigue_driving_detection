@@ -372,8 +372,8 @@ def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
         cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
         for i in range(5, 15, 2):
             cv2.circle(img, (int(box[i]), int(box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+    # cv2.imshow("img", img)
+    # cv2.waitKey(0)
     # Stack cropped images into a single tensor
     if cropped_images:
         cropped_images_tensor = torch.stack(cropped_images)
