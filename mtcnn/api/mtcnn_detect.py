@@ -1,13 +1,19 @@
-import tool
-import nets
-import torch
-import numpy as np
-from torchvision import transforms
+"""
+Author: jhzhu
+Date: 2024/7/26
+Description: 
+"""
 import time
-from PIL import Image, ImageDraw
+
 import cv2
-import os
-from torchvision.ops.boxes import batched_nms, nms
+import numpy as np
+import torch
+from PIL import Image
+from torchvision import transforms
+from torchvision.ops.boxes import nms
+
+from mtcnn import nets
+from mtcnn.api import tool
 
 # 检测是否有GPU
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
@@ -107,7 +113,6 @@ class Detector(object):
 
         """
 
-
         boxes = []
 
         print("P-Net 检测")
@@ -140,10 +145,9 @@ class Detector(object):
 
             nums += _cls.shape[-1] * _cls.shape[-2]
 
-
             # 将数据搬到CPU上计算 [1, 1, 295, 445]
-            _cls = _cls[0][0].data.cpu() # [295, 445]
-            _offset = _offset[0].data.cpu() # [4, 295, 445]
+            _cls = _cls[0][0].data.cpu()  # [295, 445]
+            _offset = _offset[0].data.cpu()  # [4, 295, 445]
             # [h, w]
             # print(_cls.shape)
             # print(_cls)
@@ -172,7 +176,6 @@ class Detector(object):
         if self.softnms:
             return tool.soft_nms(torch.stack(boxes).numpy(), 0.3)
 
-
         # return tool.nms(torch.stack(boxes).numpy(), 0.3)
         boxes = torch.stack(boxes)
         return boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
@@ -183,7 +186,6 @@ class Detector(object):
         # P-Net 反解坐标
         # 左上角坐标
         # anchor 的坐标是死的
-
 
         # 求映射到原图中的
         # 左上角的坐标
@@ -341,19 +343,50 @@ class Detector(object):
         return tool.nms(np.stack(boxes), 0.3, isMin=True)
 
 
-if __name__ == '__main__':
-    img_path = r"./data/detect_img/06.jpg"
-    img = Image.open(img_path)
-    detector = Detector("param_before/p_net.pt", "param_before/r_net.pt", "param_before/o_net.pt")
+def crop_detected_boxes(image_path, detector):
+    img = Image.open(image_path)
     pnet_boxes, rnet_boxes, onet_boxes = detector.detect(img)
-    img = cv2.imread(img_path)
+
+    # Check if detection returned empty tensor
+    if len(onet_boxes) == 0:
+        return torch.empty(0)
+
+    img = cv2.imread(image_path)
+    cropped_images = []
+
     for box in onet_boxes:
         x1 = int(box[0])
         y1 = int(box[1])
         x2 = int(box[2])
         y2 = int(box[3])
+
+        # Crop the detected face
+        cropped_img = img[y1:y2, x1:x2]
+
+        # Convert the cropped image to tensor
+        cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
+        cropped_img = Image.fromarray(cropped_img)
+        cropped_img_tensor = transforms.ToTensor()(cropped_img)
+        cropped_images.append(cropped_img_tensor)
+
+        # Draw rectangle and landmarks (for visualization, optional)
         cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
         for i in range(5, 15, 2):
             cv2.circle(img, (int(box[i]), int(box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
-    cv2.imshow("img", img)
-    cv2.waitKey(0)
+
+    # Stack cropped images into a single tensor
+    if cropped_images:
+        cropped_images_tensor = torch.stack(cropped_images)
+    else:
+        cropped_images_tensor = torch.empty(0)
+    return cropped_images_tensor
+
+
+def get_detect_face(img_path):
+    detector = Detector("../param_before/p_net.pt", "../param_before/r_net.pt", "../param_before/o_net.pt")
+    return crop_detected_boxes(img_path, detector)
+
+
+if __name__ == '__main__':
+    img_path = r"../data/detect_img/06.jpg"
+    get_detect_face(img_path)

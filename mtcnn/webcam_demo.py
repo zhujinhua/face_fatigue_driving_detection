@@ -3,7 +3,7 @@ from PIL import Image
 from fast_detect import Detector
 import os
 
-param_path = "param"
+param_path = "param_before"
 p_net, r_net, o_net = [os.path.join(param_path, "p_net.pt"), os.path.join(param_path, "r_net.pt"),
                        os.path.join(param_path, "o_net.pt")]
 video_path = r"./data/detect_video/test01.mp4"
@@ -28,7 +28,7 @@ c = 0
 while cap.isOpened():
     ret, frame = cap.read()
     if ret:
-        timeF = 24  # 每一帧检测一次
+        timeF = 1  # 每一帧检测一次
         if c % timeF == 0:
             img = frame[..., ::-1]
             img = Image.fromarray(img)
