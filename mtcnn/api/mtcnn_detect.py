@@ -12,8 +12,7 @@ from PIL import Image
 from torchvision import transforms
 from torchvision.ops.boxes import nms
 
-from mtcnn import nets
-from mtcnn.api import tool
+from mtcnn.api import tool, nets
 
 # 检测是否有GPU
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
@@ -343,7 +342,7 @@ class Detector(object):
         return tool.nms(np.stack(boxes), 0.3, isMin=True)
 
 
-def crop_detected_boxes(image_path, detector):
+def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
     img = Image.open(image_path)
     pnet_boxes, rnet_boxes, onet_boxes = detector.detect(img)
 
@@ -362,7 +361,7 @@ def crop_detected_boxes(image_path, detector):
 
         # Crop the detected face
         cropped_img = img[y1:y2, x1:x2]
-
+        cropped_img = cv2.resize(cropped_img, target_size)
         # Convert the cropped image to tensor
         cropped_img = cv2.cvtColor(cropped_img, cv2.COLOR_BGR2RGB)
         cropped_img = Image.fromarray(cropped_img)
@@ -373,20 +372,23 @@ def crop_detected_boxes(image_path, detector):
         cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
         for i in range(5, 15, 2):
             cv2.circle(img, (int(box[i]), int(box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
-
+    cv2.imshow("img", img)
+    cv2.waitKey(0)
     # Stack cropped images into a single tensor
     if cropped_images:
         cropped_images_tensor = torch.stack(cropped_images)
     else:
         cropped_images_tensor = torch.empty(0)
+    # [batch_size, channels, height, weight]
     return cropped_images_tensor
 
 
 def get_detect_face(img_path):
-    detector = Detector("../param_before/p_net.pt", "../param_before/r_net.pt", "../param_before/o_net.pt")
+    detector = Detector("../param/p_net.pt", "../param/r_net.pt", "../param/o_net.pt")
     return crop_detected_boxes(img_path, detector)
 
 
 if __name__ == '__main__':
     img_path = r"./10.jpg"
-    get_detect_face(img_path)
+    cropped_images_tensor = get_detect_face(img_path)
+    print(cropped_images_tensor.shape)
