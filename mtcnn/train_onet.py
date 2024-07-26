@@ -6,7 +6,7 @@ import train
 
 if __name__ == '__main__':
     param_path = r"param/o_net.pt"
-    data_path = r"test_data/MTCNN/48"
+    data_path = r"train_data/MTCNN/48"
     if not os.path.exists("param"):
         os.makedirs("param")
     begin = time.time()

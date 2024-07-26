@@ -7,13 +7,13 @@ import os
 
 DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 # 图像
-img_dir = os.path.join(DATA_ROOT, 'Img/img_celeba')
+img_dir = os.path.join(DATA_ROOT, 'train')
 # 框的标注
 anno_src = os.path.join(DATA_ROOT, 'Anno/list_bbox_celeba.txt')
 # 关键点的标注
 anno_landmarks_src = os.path.join(DATA_ROOT, 'Anno/list_landmarks_celeba.txt')
 # 结果保存
-save_dir = r"../test_data/MTCNN"
+save_dir = r"../train_data/MTCNN"
 
 # 为随机数种子做准备，使正样本，部分样本，负样本的比例为1：1：3
 float_num = [0.1, 0.1, 0.3, 0.5, 0.95, 0.95, 0.99, 0.99, 0.99, 0.99]
@@ -208,8 +208,8 @@ def gen_sample(face_size, stop_value):
 if __name__ == '__main__':
     # 100000
     # P-Net
-    gen_sample(12, 6000)
+    gen_sample(12, 10000)
     # R-Net
-    gen_sample(24, 6000)
+    gen_sample(24, 10000)
     # O-Net
-    gen_sample(48, 6000)
+    gen_sample(48, 10000)

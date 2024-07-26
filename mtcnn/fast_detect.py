@@ -99,6 +99,65 @@ class Detector(object):
         print("time:{}, pnet_time:{}, rnet_time:{}, onet_time:{}".format(sum_time, pnet_time, rnet_time, onet_time))
         return pnet_boxes, rnet_boxes, onet_boxes
 
+    def batch_detect(self, images):
+        """
+            批量检测
+
+            - 传入的是图像列表，每个元素是原始图像的 PIL.Image 对象
+        """
+        start_time = time.time()
+
+        # 第一步：传入 P-Net 做第一步的检测
+        pnet_boxes_batch = [self.pnet_batch_detect(image) for image in images]
+
+        # 打印 P-Net 检测结果
+        print("pnet_boxes_batch:", [boxes.shape for boxes in pnet_boxes_batch])
+
+        if all(pnet_boxes.shape[0] == 0 for pnet_boxes in pnet_boxes_batch):
+            print("P网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        pnet_time = end_time - start_time
+
+        start_time = time.time()
+
+        # 第二步：传入 R-Net 进行进一步检测
+        rnet_boxes_batch = [
+            self.rnet_batch_detect(image, pnet_boxes) for image, pnet_boxes in zip(images, pnet_boxes_batch)
+        ]
+
+        # 打印 R-Net 检测结果
+        print("rnet_boxes_batch:", [boxes.shape for boxes in rnet_boxes_batch])
+
+        if all(rnet_boxes.shape[0] == 0 for rnet_boxes in rnet_boxes_batch):
+            print("R网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        rnet_time = end_time - start_time
+
+        start_time = time.time()
+
+        # 第三步：传入 O-Net 进行最终检测
+        onet_boxes_batch = [
+            self.onet_batch_detect(image, rnet_boxes) for image, rnet_boxes in zip(images, rnet_boxes_batch)
+        ]
+
+        # 打印 O-Net 检测结果
+        print("onet_boxes_batch:", [boxes.shape for boxes in onet_boxes_batch])
+
+        if all(onet_boxes.shape[0] == 0 for onet_boxes in onet_boxes_batch):
+            print("O网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        onet_time = end_time - start_time
+        sum_time = pnet_time + rnet_time + onet_time
+
+        print("time:{}, pnet_time:{}, rnet_time:{}, onet_time:{}".format(sum_time, pnet_time, rnet_time, onet_time))
+        return pnet_boxes_batch, rnet_boxes_batch, onet_boxes_batch
+
     def pnet_detect(self, image):
         """
             P-Net 检测
@@ -106,7 +165,6 @@ class Detector(object):
             - 传入的是 原始图像 的 Image对象
 
         """
-
 
         boxes = []
 
@@ -140,10 +198,9 @@ class Detector(object):
 
             nums += _cls.shape[-1] * _cls.shape[-2]
 
-
             # 将数据搬到CPU上计算 [1, 1, 295, 445]
-            _cls = _cls[0][0].data.cpu() # [295, 445]
-            _offset = _offset[0].data.cpu() # [4, 295, 445]
+            _cls = _cls[0][0].data.cpu()  # [295, 445]
+            _offset = _offset[0].data.cpu()  # [4, 295, 445]
             # [h, w]
             # print(_cls.shape)
             # print(_cls)
@@ -172,10 +229,11 @@ class Detector(object):
         if self.softnms:
             return tool.soft_nms(torch.stack(boxes).numpy(), 0.3)
 
-
         # return tool.nms(torch.stack(boxes).numpy(), 0.3)
-        boxes = torch.stack(boxes)
-        return boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
+        if len(boxes) > 0:
+            boxes = torch.stack(boxes)
+            return boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
+        return torch.tensor(np.array([]))
 
     def box(self, indexes, cls, offset, scale, stride=2, side_len=12):
 
@@ -183,7 +241,6 @@ class Detector(object):
         # P-Net 反解坐标
         # 左上角坐标
         # anchor 的坐标是死的
-
 
         # 求映射到原图中的
         # 左上角的坐标
@@ -340,11 +397,227 @@ class Detector(object):
 
         return tool.nms(np.stack(boxes), 0.3, isMin=True)
 
+    def pnet_batch_detect(self, images):
+        """
+            批量 P-Net 检测
+
+            - 传入的是图像列表，每个元素是原始图像的 PIL.Image 对象
+        """
+        batch_size = len(images)
+        all_boxes = [[] for _ in range(batch_size)]
+
+        print("P-Net 批量检测")
+        min_side = min(images[0].size)  # 初始图像的最小边
+        scales = []  # 存储每个图像的尺度
+        for image in images:
+            w, h = image.size
+            scale = 1
+            scale_time = 1
+            while min_side > 12:
+                scales.append((scale, w, h))
+                scale *= self.factor
+                w = int(w * scale)
+                h = int(h * scale)
+                min_side = min(w, h)
+
+        # 生成金字塔图像
+        pyramid_images = []
+        for i, (image, (scale, _, _)) in enumerate(zip(images, scales)):
+            w, h = image.size
+            _w = int(w * scale)
+            _h = int(h * scale)
+            pyramid_images.append(image.resize((_w, _h)))
+
+        # 数据预处理
+        img_data_list = [self.img_transfrom(img).unsqueeze(0).to(device) for img in pyramid_images]
+
+        # 批量检测
+        with torch.no_grad():
+            cls_list = []
+            offset_list = []
+            for img_data in img_data_list:
+                _cls, _offset = self.pnet(img_data)
+                cls_list.append(_cls)
+                offset_list.append(_offset)
+
+        # 处理每张图像的结果
+        for i, (image, (scale, _, _)) in enumerate(zip(images, scales)):
+            w, h = image.size
+            img_scale = scale
+            for cls, offset in zip(cls_list, offset_list):
+                _cls = cls[0][0].data.cpu()
+                _offset = offset[0].data.cpu()
+
+                indexes = torch.nonzero(_cls > self.thresholds[0])
+                all_boxes[i].extend(self.box(indexes, _cls, _offset, img_scale))
+                img_scale *= self.factor
+
+        # 去重复处理
+        if self.softnms:
+            results = []
+            for boxes in all_boxes:
+                results.append(tool.soft_nms(torch.stack(boxes).numpy(), 0.3))
+            return results
+
+        results = []
+        for boxes in all_boxes:
+            boxes = torch.stack(boxes)
+            results.append(boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy())
+        return results
+
+    def rnet_batch_detect(self, images, pnet_boxes_batch):
+        """
+            批量 R-Net 检测
+
+            - 传入的是图像列表，每个元素是原始图像的 PIL.Image 对象
+            - pnet_boxes_batch 是每张图像对应的 P-Net 检测框
+        """
+        batch_size = len(images)
+        all_boxes = [[] for _ in range(batch_size)]
+
+        # 处理每张图像的 P-Net 框
+        for i, (image, pnet_boxes) in enumerate(zip(images, pnet_boxes_batch)):
+            img_dataset = []
+            # 取出PNet的框，转为正方形，转成tensor
+            square_boxes = torch.from_numpy(tool.convert_to_square(pnet_boxes))
+
+            for box in square_boxes:
+                _x1 = int(box[0])
+                _y1 = int(box[1])
+                _x2 = int(box[2])
+                _y2 = int(box[3])
+                # 裁剪并调整到RNet输入尺寸
+                img_crop = image.crop([_x1, _y1, _x2, _y2])
+                img_crop = img_crop.resize((24, 24))
+                img_data = self.img_transfrom(img_crop).to(device)
+                img_dataset.append(img_data)
+
+            if len(img_dataset) == 0:
+                all_boxes[i] = np.array([])
+                continue
+
+            # 批量处理 R-Net 检测
+            with torch.no_grad():
+                _cls, _offset = self.rnet(torch.stack(img_dataset))
+
+            _cls = _cls.data.cpu()
+            _offset = _offset.data.cpu()
+
+            # 取出符合阈值的框
+            indexes = torch.nonzero(_cls > self.thresholds[1])[:, 0]
+            if indexes.numel() == 0:
+                all_boxes[i] = np.array([])
+                continue
+
+            # 处理每张图像的框
+            box = square_boxes[indexes]
+            _x1 = box[:, 0]
+            _y1 = box[:, 1]
+            _x2 = box[:, 2]
+            _y2 = box[:, 3]
+
+            side = _x2 - _x1
+            offset = _offset[indexes]
+            x1 = _x1 + side * offset[:, 0]
+            y1 = _y1 + side * offset[:, 1]
+            x2 = _x2 + side * offset[:, 2]
+            y2 = _y2 + side * offset[:, 3]
+            cls = _cls[indexes][:, 0]
+
+            boxes = torch.stack([x1, y1, x2, y2, cls], dim=1)
+
+            if self.softnms:
+                all_boxes[i] = tool.soft_nms(boxes.numpy(), 0.3)
+            else:
+                all_boxes[i] = boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
+
+        return all_boxes
+
+    def onet_batch_detect(self, images, rnet_boxes_batch):
+        """
+            批量 O-Net 检测
+
+            - 传入的是图像列表，每个元素是原始图像的 PIL.Image 对象
+            - rnet_boxes_batch 是每张图像对应的 R-Net 检测框
+        """
+        batch_size = len(images)
+        all_boxes = [[] for _ in range(batch_size)]
+
+        # 处理每张图像的 R-Net 框
+        for i, (image, rnet_boxes) in enumerate(zip(images, rnet_boxes_batch)):
+            img_dataset = []
+            square_boxes = torch.from_numpy(tool.convert_to_square(rnet_boxes))
+
+            for box in square_boxes:
+                _x1 = int(box[0])
+                _y1 = int(box[1])
+                _x2 = int(box[2])
+                _y2 = int(box[3])
+                img_crop = image.crop([_x1, _y1, _x2, _y2])
+                img_crop = img_crop.resize((48, 48))
+                img_data = self.img_transfrom(img_crop).to(device)
+                img_dataset.append(img_data)
+
+            if len(img_dataset) == 0:
+                all_boxes[i] = np.array([])
+                continue
+
+            # 批量处理 O-Net 检测
+            with torch.no_grad():
+                _cls, _offset, _point = self.onet(torch.stack(img_dataset))
+
+            _cls = _cls.data.cpu().numpy()
+            _offset = _offset.data.cpu().numpy()
+            _point = _point.data.cpu().numpy()
+
+            # 取出符合阈值的框
+            indexes, _ = np.where(_cls > self.thresholds[2])
+            if indexes.size == 0:
+                all_boxes[i] = np.array([])
+                continue
+
+            # 处理每张图像的框
+            box = square_boxes[indexes]
+            _x1 = box[:, 0]
+            _y1 = box[:, 1]
+            _x2 = box[:, 2]
+            _y2 = box[:, 3]
+
+            side = _x2 - _x1
+            offset = _offset[indexes]
+
+            x1 = _x1 + side * offset[:, 0]
+            y1 = _y1 + side * offset[:, 1]
+            x2 = _x2 + side * offset[:, 2]
+            y2 = _y2 + side * offset[:, 3]
+            cls = _cls[indexes][:, 0]
+
+            point = _point[indexes]
+            px1 = _x1 + side * point[:, 0]
+            py1 = _y1 + side * point[:, 1]
+            px2 = _x1 + side * point[:, 2]
+            py2 = _y1 + side * point[:, 3]
+            px3 = _x1 + side * point[:, 4]
+            py3 = _y1 + side * point[:, 5]
+            px4 = _x1 + side * point[:, 6]
+            py4 = _y1 + side * point[:, 7]
+            px5 = _x1 + side * point[:, 8]
+            py5 = _y1 + side * point[:, 9]
+
+            # 构建最终的检测框
+            boxes = np.stack([x1, y1, x2, y2, cls, px1, py1, px2, py2, px3, py3, px4, py4, px5, py5], axis=1)
+            if self.softnms:
+                all_boxes[i] = tool.soft_nms(boxes, 0.3)
+            else:
+                all_boxes[i] = tool.nms(boxes, 0.3, isMin=True)
+
+        return all_boxes
+
 
 if __name__ == '__main__':
     img_path = r"./data/detect_img/06.jpg"
     img = Image.open(img_path)
-    detector = Detector("param1/p_net.pt", "param1/r_net.pt", "param1/o_net.pt")
+    detector = Detector("param/p_net.pt", "param/r_net.pt", "param/o_net.pt")
     pnet_boxes, rnet_boxes, onet_boxes = detector.detect(img)
     img = cv2.imread(img_path)
     for box in onet_boxes:
@@ -355,5 +628,5 @@ if __name__ == '__main__':
         cv2.rectangle(img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=3)
         for i in range(5, 15, 2):
             cv2.circle(img, (int(box[i]), int(box[i + 1])), radius=2, color=(255, 255, 0), thickness=-1)
-    # cv2.imshow("img", img)
+    cv2.imshow("img", img)
     cv2.waitKey(0)
