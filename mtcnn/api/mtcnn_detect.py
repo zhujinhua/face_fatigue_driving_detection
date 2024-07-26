@@ -384,12 +384,12 @@ def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
     return cropped_images_tensor
 
 
-def get_detect_face(img_path):
+def get_detect_face(img_path, target_size=(48, 48)):
     param_path = os.path.join(CURRENT_DIR, '..', 'param')
     detector = Detector(os.path.join(param_path, 'p_net.pt'),
                         os.path.join(param_path, 'r_net.pt'),
                         os.path.join(param_path, 'o_net.pt'))
-    return crop_detected_boxes(img_path, detector)
+    return crop_detected_boxes(img_path, detector, target_size)
 
 
 if __name__ == '__main__':
