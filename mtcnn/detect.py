@@ -213,7 +213,7 @@ class Detector:
 
 
 if __name__ == '__main__':
-    img_path = r"./detect_img/10.jpg"
+    img_path = r"api/10.jpg"
     img = Image.open(img_path)
     # img_draw = ImageDraw.Draw(img)
     detector = Detector("param/p_net.pt", "param/r_net.pt", "param/o_net.pt")

@@ -388,5 +388,5 @@ def get_detect_face(img_path):
 
 
 if __name__ == '__main__':
-    img_path = r"../data/detect_img/06.jpg"
+    img_path = r"./10.jpg"
     get_detect_face(img_path)
