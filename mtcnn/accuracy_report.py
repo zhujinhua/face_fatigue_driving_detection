@@ -14,7 +14,7 @@ from torchvision import transforms
 
 from mtcnn.fast_detect import Detector
 
-SAMPLE_COUNT = 32
+SAMPLE_COUNT = 1000
 
 
 class CelebATestDataset(Dataset):
@@ -93,36 +93,6 @@ detector = Detector("param_after/p_net.pt", "param_after/r_net.pt", "param_after
 all_true_labels = []
 all_pred_labels = []
 
-# with torch.no_grad():
-#     for images, ground_truth_boxes in test_loader:
-#         # add batch detect
-#         batch_pnet_boxes, batch_rnet_boxes, batch_onet_boxes = detector.batch_detect(images)
-#
-#         for i in range(len(batch_onet_boxes)):
-#             if batch_onet_boxes[i].ndim == 1:
-#                 all_true_labels
-#             boxes = batch_onet_boxes[i][:,:4]
-#             ground_truth_box = np.array(ground_truth_boxes[i])
-#
-#             # 计算预测标签和真实标签
-#             true_labels = np.zeros(len(ground_truth_box))
-#             pred_labels = np.zeros(len(boxes))
-#             if len(boxes) == 0:
-#                 # 如果没有检测到任何目标，跳过
-#                 all_true_labels.extend(true_labels)
-#                 all_pred_labels.extend(pred_labels)
-#                 continue
-#             for j, box in enumerate(boxes):
-#                 pred_labels[j] = 0
-#                 for k, gt_box in enumerate([ground_truth_box]):
-#                     if gt_box.ndim == 1:
-#                         continue
-#                     if iou(box, gt_box) > 0.5:
-#                         pred_labels[j] = 1
-#                         true_labels[k] = 1
-#
-#             all_true_labels.extend(true_labels)
-#             all_pred_labels.extend(pred_labels)
 with torch.no_grad():
     for images, ground_truth_box in test_loader:
         # 使用 O-Net 进行人脸检测
