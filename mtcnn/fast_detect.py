@@ -108,7 +108,7 @@ class Detector(object):
         start_time = time.time()
 
         # 第一步：传入 P-Net 做第一步的检测
-        pnet_boxes_batch = [self.pnet_batch_detect(image) for image in images]
+        pnet_boxes_batch = [self.pnet_detect(image) for image in images]
 
         # 打印 P-Net 检测结果
         print("pnet_boxes_batch:", [boxes.shape for boxes in pnet_boxes_batch])
@@ -124,7 +124,7 @@ class Detector(object):
 
         # 第二步：传入 R-Net 进行进一步检测
         rnet_boxes_batch = [
-            self.rnet_batch_detect(image, pnet_boxes) for image, pnet_boxes in zip(images, pnet_boxes_batch)
+            self.rnet_detect(image, pnet_boxes) for image, pnet_boxes in zip(images, pnet_boxes_batch)
         ]
 
         # 打印 R-Net 检测结果
@@ -141,7 +141,7 @@ class Detector(object):
 
         # 第三步：传入 O-Net 进行最终检测
         onet_boxes_batch = [
-            self.onet_batch_detect(image, rnet_boxes) for image, rnet_boxes in zip(images, rnet_boxes_batch)
+            self.onet_detect(image, rnet_boxes) for image, rnet_boxes in zip(images, rnet_boxes_batch)
         ]
 
         # 打印 O-Net 检测结果
@@ -274,6 +274,8 @@ class Detector(object):
         """
             R-Net 检测
         """
+        if pnet_boxes.shape[0] == 0:
+            return torch.tensor(np.array([]))
         boxes = []
         img_dataset = []
         # 取出PNet的框，转为正方形，转成tensor，方便后面用tensor去索引
@@ -333,6 +335,8 @@ class Detector(object):
             O-Net 检测
 
         """
+        if rnet_boxes.shape[0] == 0:
+            return torch.tensor(np.array([]))
         boxes = []
         img_dataset = []
         square_boxes = tool.convert_to_square(rnet_boxes)
@@ -407,7 +411,7 @@ class Detector(object):
         all_boxes = [[] for _ in range(batch_size)]
 
         print("P-Net 批量检测")
-        min_side = min(images[0].size)  # 初始图像的最小边
+        min_side = 224  # 初始图像的最小边
         scales = []  # 存储每个图像的尺度
         for image in images:
             w, h = image.size
@@ -617,7 +621,7 @@ class Detector(object):
 if __name__ == '__main__':
     img_path = r"./data/detect_img/06.jpg"
     img = Image.open(img_path)
-    detector = Detector("param/p_net.pt", "param/r_net.pt", "param/o_net.pt")
+    detector = Detector("param_after/p_net.pt", "param_after/r_net.pt", "param_after/o_net.pt")
     pnet_boxes, rnet_boxes, onet_boxes = detector.detect(img)
     img = cv2.imread(img_path)
     for box in onet_boxes:

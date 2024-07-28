@@ -1,5 +1,4 @@
 import time
-
 import nets
 import os
 import train

@@ -5,10 +5,10 @@ import os
 import train
 
 if __name__ == '__main__':
-    param_path = r"param/o_net.pt"
+    param_path = r"param_after/o_net.pt"
     data_path = r"train_data/MTCNN/48"
-    if not os.path.exists("param"):
-        os.makedirs("param")
+    if not os.path.exists("param_after"):
+        os.makedirs("param_after")
     begin = time.time()
     net = nets.ONet()
     t = train.Trainer(net, param_path, data_path)
