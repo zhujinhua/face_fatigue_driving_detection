@@ -51,6 +51,8 @@ class TestAPI(unittest.TestCase):
                         # image = cv2.imread('frame.jpg')
                         for box in onet_boxes:
                             cv2.rectangle(frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color=(0, 255, 0), thickness=25)
+                            text = f'{box[4]:.2f}'
+                            cv2.putText(frame, text, (int(box[0]), int(box[1]) - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 5)
                             # cv2.rectangle(image, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), color=(0, 255, 0), thickness=25)
                         # cv2.imwrite('./check.jpg', image)
                 cv2.imshow('video', frame)
