@@ -1,4 +1,6 @@
+import cv2
 import numpy as np
+from PIL import Image
 
 
 # 计算iou，用两个框的交集除以 并集或最小集
@@ -95,6 +97,26 @@ def soft_nms(boxes, thresh=0.3, isMin=False):
         r_box.append(_boxes[0])
 
     return np.stack(r_box)
+
+
+def draw_rectangle(img, output_path, boxes, color=(0, 0, 255)):
+    image = cv2.imread(img.filename)
+    for box in boxes:
+        x1 = int(box[0])
+        y1 = int(box[1])
+        x2 = int(box[2])
+        y2 = int(box[3])
+        conf = round(box[4], 2)
+        text = f'{conf:.2f}'
+        cv2.rectangle(image, (x1, y1), (x2, y2), color=color, thickness=3)
+        cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2)
+    cv2.imwrite(output_path, image)
+
+
+def resize_image(image, base_width):
+    w_percent = (base_width / float(image.size[0]))
+    h_size = int((float(image.size[1]) * float(w_percent)))
+    return image.resize((base_width, h_size), Image.Resampling.LANCZOS)
 
 
 if __name__ == '__main__':

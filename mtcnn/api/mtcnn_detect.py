@@ -14,6 +14,7 @@ from torchvision import transforms
 from torchvision.ops.boxes import nms
 
 from mtcnn.api import tool, nets
+from mtcnn.api.tool import draw_rectangle
 
 # 检测是否有GPU
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
@@ -71,21 +72,19 @@ class Detector(object):
 
         # 第一步：传入P-Net做第一步的检测
         pnet_boxes = self.pnet_detect(image)
-
         print("pnet_boxes: ", pnet_boxes.shape)
-
+        # draw_rectangle(image, 'pnet_result.jpg', pnet_boxes, (0, 0, 255))
         if pnet_boxes.shape[0] == 0:
             print("P网络未检测到人脸")
             return np.array([])
 
         end_time = time.time()
         pnet_time = end_time - start_time
-
         start_time = time.time()
 
         rnet_boxes = self.rnet_detect(image, pnet_boxes)
         print("rnet_boxes: ", rnet_boxes.shape)
-
+        # draw_rectangle(image, 'rnet_result.jpg', rnet_boxes, (0, 255, 0))
         if rnet_boxes.shape[0] == 0:
             print("R网络未检测到人脸")
             return np.array([])
@@ -96,14 +95,15 @@ class Detector(object):
         start_time = time.time()
         onet_boxes = self.onet_detect(image, rnet_boxes)
         print("onet_boxes: ", onet_boxes.shape)
+        # draw_rectangle(image, 'onet_result.jpg', onet_boxes, (255, 0, 0))
         if onet_boxes.shape[0] == 0:
             print("O网路未检测到人脸")
-            return np.array([])
+            return np.array([]), np.array([]), np.array([])
 
         end_time = time.time()
         onet_time = end_time - start_time
         sum_time = pnet_time + rnet_time + onet_time
-        print("time:{}, pnet_time:{}, rnet_time:{}, onet_time:{}".format(sum_time, pnet_time, rnet_time, onet_time))
+        # print("time:{}, pnet_time:{}, rnet_time:{}, onet_time:{}".format(sum_time, pnet_time, rnet_time, onet_time))
         return pnet_boxes, rnet_boxes, onet_boxes
 
     def pnet_detect(self, image):
@@ -116,11 +116,11 @@ class Detector(object):
 
         boxes = []
 
-        print("P-Net 检测")
+        # print("P-Net 检测")
         # 遵从坐标习惯 H, W --> W, H
 
         w, h = image.size
-        print("原始图像：", image.size)
+        # print("原始图像：", image.size)
 
         min_side = min(w, h)
 
@@ -141,8 +141,8 @@ class Detector(object):
                 _cls, _offset = self.pnet(img_data)
 
             # [1, 1, H, W]
-            print("输出置信度：", _cls.shape)
-            print("输出bbox偏置：", _offset.shape)
+            # print("输出置信度：", _cls.shape)
+            # print("输出bbox偏置：", _offset.shape)
 
             nums += _cls.shape[-1] * _cls.shape[-2]
 
@@ -172,14 +172,14 @@ class Detector(object):
             min_side = min(_w, _h)
             scale_time += 1
         # 打印PNet的检测次数
-        print(nums)
+        # print(nums)
         # 没有做去重复
         if self.softnms:
             return tool.soft_nms(torch.stack(boxes).numpy(), 0.3)
-
-        # return tool.nms(torch.stack(boxes).numpy(), 0.3)
-        boxes = torch.stack(boxes)
-        return boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
+        if len(boxes) > 0:
+            boxes = torch.stack(boxes)
+            return boxes[nms(boxes[:, :4], boxes[:, 4], 0.3)].numpy()
+        return torch.tensor(np.array([]))
 
     def box(self, indexes, cls, offset, scale, stride=2, side_len=12):
 
@@ -220,6 +220,8 @@ class Detector(object):
         """
             R-Net 检测
         """
+        if pnet_boxes.shape[0] == 0:
+            return torch.tensor(np.array([]))
         boxes = []
         img_dataset = []
         # 取出PNet的框，转为正方形，转成tensor，方便后面用tensor去索引
@@ -279,6 +281,8 @@ class Detector(object):
             O-Net 检测
 
         """
+        if rnet_boxes.shape[0] == 0:
+            return torch.tensor(np.array([]))
         boxes = []
         img_dataset = []
         square_boxes = tool.convert_to_square(rnet_boxes)
@@ -291,7 +295,8 @@ class Detector(object):
             img_crop = img_crop.resize((48, 48))
             img_data = self.img_transfrom(img_crop).to(device)
             img_dataset.append(img_data)
-
+        if not img_dataset:
+            return np.array([])
         _cls, _offset, _point = self.onet(torch.stack(img_dataset))
         _cls = _cls.data.cpu().numpy()
         _offset = _offset.data.cpu().numpy()
@@ -342,6 +347,65 @@ class Detector(object):
             return np.array([])
 
         return tool.nms(np.stack(boxes), 0.3, isMin=True)
+
+    def batch_detect(self, images):
+        """
+            批量检测
+
+            - 传入的是图像列表，每个元素是原始图像的 PIL.Image 对象
+        """
+        start_time = time.time()
+
+        # 第一步：传入 P-Net 做第一步的检测
+        pnet_boxes_batch = [self.pnet_detect(image) for image in images]
+
+        # 打印 P-Net 检测结果
+        # print("pnet_boxes_batch:", [boxes.shape for boxes in pnet_boxes_batch])
+
+        if all(pnet_boxes.shape[0] == 0 for pnet_boxes in pnet_boxes_batch):
+            print("P网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        pnet_time = end_time - start_time
+
+        start_time = time.time()
+
+        # 第二步：传入 R-Net 进行进一步检测
+        rnet_boxes_batch = [
+            self.rnet_detect(image, pnet_boxes) for image, pnet_boxes in zip(images, pnet_boxes_batch)
+        ]
+
+        # 打印 R-Net 检测结果
+        # print("rnet_boxes_batch:", [boxes.shape for boxes in rnet_boxes_batch])
+
+        if all(rnet_boxes.shape[0] == 0 for rnet_boxes in rnet_boxes_batch):
+            print("R网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        rnet_time = end_time - start_time
+
+        start_time = time.time()
+
+        # 第三步：传入 O-Net 进行最终检测
+        onet_boxes_batch = [
+            self.onet_detect(image, rnet_boxes) for image, rnet_boxes in zip(images, rnet_boxes_batch)
+        ]
+
+        # 打印 O-Net 检测结果
+        # print("onet_boxes_batch:", [boxes.shape for boxes in onet_boxes_batch])
+
+        if all(onet_boxes.shape[0] == 0 for onet_boxes in onet_boxes_batch):
+            print("O网络未检测到任何人脸")
+            return [np.array([]) for _ in images]
+
+        end_time = time.time()
+        onet_time = end_time - start_time
+        sum_time = pnet_time + rnet_time + onet_time
+
+        # print("time:{}, pnet_time:{}, rnet_time:{}, onet_time:{}".format(sum_time, pnet_time, rnet_time, onet_time))
+        return pnet_boxes_batch, rnet_boxes_batch, onet_boxes_batch
 
 
 def crop_detected_boxes(image_path, detector, target_size=(48, 48)):
@@ -407,11 +471,15 @@ def select_closest_to_center_box(boxes, image_width, image_height):
     return boxes[min_distance_index]
 
 
-def get_detect_face(img_path, target_size=(48, 48)):
+def get_mtcnn_detector():
     param_path = os.path.join(CURRENT_DIR, '..', 'param')
-    detector = Detector(os.path.join(param_path, 'p_net.pt'),
-                        os.path.join(param_path, 'r_net.pt'),
-                        os.path.join(param_path, 'o_net.pt'))
+    return Detector(os.path.join(param_path, 'p_net.pt'),
+                    os.path.join(param_path, 'r_net.pt'),
+                    os.path.join(param_path, 'o_net.pt'))
+
+
+def get_detect_face(img_path, target_size=(48, 48)):
+    detector = get_mtcnn_detector()
     return crop_detected_boxes(img_path, detector, target_size)
 
 
