@@ -37,6 +37,7 @@ class TestAPI(unittest.TestCase):
             ret, frame = cap.read()
             if ret:
                 if c % 1 == 0:
+                    # BGR covert to RGB, for mtcnn used RGB
                     img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     img = Image.fromarray(img)
                     # img = resize_image(img, 512)
@@ -56,8 +57,6 @@ class TestAPI(unittest.TestCase):
                 outVideo.write(frame)
                 if cv2.waitKey(1) == 27:
                     break
-
             c += 1
-
         cap.release()
         cv2.destroyAllWindows()
