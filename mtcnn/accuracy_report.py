@@ -104,12 +104,19 @@ with torch.no_grad():
             else:
                 boxes = batch_onet_boxes[i][:, :4]
                 gt_box = np.array(ground_truth_box[i])
-
+                x = int(gt_box[0])
+                y = int(gt_box[1])
+                w = int(gt_box[2])
+                h = int(gt_box[3])
+                x1 = int(x + w * 0.12)
+                y1 = int(y + h * 0.1)
+                x2 = int(x + w * 0.9)
+                y2 = int(y + h * 0.85)
                 # 筛选与真实框IoU最大的预测框
                 if len(boxes) == 0:
                     pred_label = 0  # 如果没有预测框
                 else:
-                    ious = [iou(box, gt_box) for box in boxes]
+                    ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
                     max_iou = max(ious)
                     pred_label = 1 if max_iou > 0.5 else 0  # IoU大于阈值认为匹配正确
 
