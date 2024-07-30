@@ -81,7 +81,7 @@ def iou(box, gt_box):
 
 
 detect_result = './'
-DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
+DATA_ROOT = '../CelebA'
 test_data_path = os.path.join(DATA_ROOT, 'test')
 bbox_file = os.path.join(DATA_ROOT, 'Anno', 'list_bbox_celeba.txt')
 test_dataset = CelebATestDataset(img_dir=test_data_path, bbox_file=bbox_file)
