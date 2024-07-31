@@ -3,7 +3,7 @@ from PIL import Image
 from fast_detect import Detector
 import os
 
-param_path = "param_after"
+param_path = "param"
 p_net, r_net, o_net = [os.path.join(param_path, "p_net.pt"), os.path.join(param_path, "r_net.pt"),
                        os.path.join(param_path, "o_net.pt")]
 video_path = r"./data/detect_video/test01.mp4"
@@ -11,15 +11,12 @@ output_video_path = './data/out_video/output_video.mp4'
 detector = Detector(p_net, r_net, o_net)
 
 # 读取视频
-cap = cv2.VideoCapture(video_path)
+cap = cv2.VideoCapture(0)
 # get size and fps of video
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 # 帧播放速率
 fps = cap.get(cv2.CAP_PROP_FPS)
-# VideoWriter_fourcc为视频编解码器
-# cv2.VideoWriter_fourcc('F', 'L', 'V', '1'),该参数是Flash视频，文件名后缀为.flv
-# cv2.VideoWriter_fourcc('P', 'I', 'M', 'I'),该参数是MPEG-1编码类型，文件名后缀为.avi
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
 # create VideoWriter for saving 文件名中需要有数字编号
@@ -28,8 +25,7 @@ c = 0
 while cap.isOpened():
     ret, frame = cap.read()
     if ret:
-        timeF = 1  # 每一帧检测一次
-        if c % timeF == 0:
+        if c % 1 == 0:
             img = frame[..., ::-1]
             img = Image.fromarray(img)
             detect_boxes = detector.detect(img)
@@ -45,13 +41,9 @@ while cap.isOpened():
                     for i in range(5, 15, 2):
                         cv2.circle(frame, (int(box[i]), int(box[i + 1])), radius=1, color=(255, 255, 0), thickness=-1)
         c += 1
-        # 将处理后的图片存入输出视频
         outVideo.write(frame)
-
         cv2.imshow('video', frame)
-        c = cv2.waitKey(1)
-        # 27表示Esc键
-        if c == 27:
+        if cv2.waitKey(1) == 27:
             break
     else:
         print("视频播放结束")

@@ -10,11 +10,11 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import numpy as np
 from PIL import Image
-from torchvision import transforms
-
 from mtcnn.fast_detect import Detector
 
-SAMPLE_COUNT = 1000
+SAMPLE_COUNT = 100
+# IOU_LIST = [0.5, 0.7, 0.8, 0.9, 0.95]
+IOU_LIST = [0.95]
 
 
 class CelebATestDataset(Dataset):
@@ -74,64 +74,61 @@ def iou(box, gt_box):
     return iou
 
 
+detect_result = './out_img'
 DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 test_data_path = os.path.join(DATA_ROOT, 'test')
 bbox_file = os.path.join(DATA_ROOT, 'Anno', 'list_bbox_celeba.txt')
-img_transfrom = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
 test_dataset = CelebATestDataset(img_dir=test_data_path, bbox_file=bbox_file)
 
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, collate_fn=custom_collate_fn)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-detector = Detector("param_after/p_net.pt", "param_after/r_net.pt", "param_after/o_net.pt")
+detector = Detector("./param_after/p_net.pt", "./param_after/r_net.pt", "./param_after/o_net.pt")
 
-# 初始化评估指标
-all_true_labels = []
-all_pred_labels = []
+for _iou in IOU_LIST:
+    all_true_labels = []
+    all_pred_labels = []
 
-with torch.no_grad():
-    for images, ground_truth_box in test_loader:
-        # 使用 O-Net 进行人脸检测
-        batch_pnet_boxes, batch_rnet_boxes, batch_onet_boxes = detector.batch_detect(images)
+    with torch.no_grad():
+        for images, ground_truth_box in test_loader:
+            # 使用 O-Net 进行人脸检测
+            batch_pnet_boxes, batch_rnet_boxes, batch_onet_boxes = detector.batch_detect(images)
 
-        for i in range(len(batch_onet_boxes)):
-            if batch_onet_boxes[i].ndim == 1:
-                pred_label = 0
-            else:
-                boxes = batch_onet_boxes[i][:, :4]
-                gt_box = np.array(ground_truth_box[i])
-                x = int(gt_box[0])
-                y = int(gt_box[1])
-                w = int(gt_box[2])
-                h = int(gt_box[3])
-                x1 = int(x + w * 0.12)
-                y1 = int(y + h * 0.1)
-                x2 = int(x + w * 0.9)
-                y2 = int(y + h * 0.85)
-                # 筛选与真实框IoU最大的预测框
-                if len(boxes) == 0:
-                    pred_label = 0  # 如果没有预测框
+            for i in range(len(batch_onet_boxes)):
+
+                if batch_onet_boxes[i].ndim == 1:
+                    pred_label = 0
                 else:
-                    ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
-                    max_iou = max(ious)
-                    pred_label = 1 if max_iou > 0.5 else 0  # IoU大于阈值认为匹配正确
+                    boxes = batch_onet_boxes[i][:, :4]
+                    gt_box = np.array(ground_truth_box[i])
+                    x = int(gt_box[0])
+                    y = int(gt_box[1])
+                    w = int(gt_box[2])
+                    h = int(gt_box[3])
+                    x1 = int(x + w * 0.12)
+                    y1 = int(y + h * 0.1)
+                    x2 = int(x + w * 0.9)
+                    y2 = int(y + h * 0.85)
+                    # 筛选与真实框IoU最大的预测框
+                    if len(boxes) == 0 or len(boxes) > 1:
+                        pred_label = 0  # 如果没有预测框
+                    else:
+                        ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
+                        max_iou = max(ious)
+                        pred_label = 1 if max_iou > _iou else 0  # IoU大于阈值认为匹配正确
 
-            true_label = 1  # 每张图片只有一个真实框，标签为1
+                true_label = 1  # 每张图片只有一个真实框，标签为1
 
-            all_true_labels.append(true_label)
-            all_pred_labels.append(pred_label)
+                all_true_labels.append(true_label)
+                all_pred_labels.append(pred_label)
 
-# 计算评估指标
-accuracy = accuracy_score(all_true_labels, all_pred_labels)
-precision = precision_score(all_true_labels, all_pred_labels)
-recall = recall_score(all_true_labels, all_pred_labels)
-f1 = f1_score(all_true_labels, all_pred_labels)
+    # 计算评估指标
+    accuracy = accuracy_score(all_true_labels, all_pred_labels)
+    # precision = precision_score(all_true_labels, all_pred_labels)
+    # recall = recall_score(all_true_labels, all_pred_labels)
+    # f1 = f1_score(all_true_labels, all_pred_labels)
 
-print(f'Accuracy: {accuracy:.4f}')
-print(f'Precision: {precision:.4f}')
-print(f'Recall: {recall:.4f}')
-print(f'F1 Score: {f1:.4f}')
+    print(f'IOU: {_iou}, Accuracy: {accuracy:.4f}')
+    # print(f'IOU: {i}, Precision: {precision:.4f}')
+    # print(f'IOU: {i}, Recall: {recall:.4f}')
+    # print(f'IOU: {i}, F1 Score: {f1:.4f}')
