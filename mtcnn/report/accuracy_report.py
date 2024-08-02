@@ -1,17 +1,10 @@
 """
 Author: jhzhu
-Date: 2024/7/28
-Description: 
-"""
-from mtcnn.api.mtcnn_detect import Detector
-
-"""
-Author: jhzhu
 Date: 2024/7/25
 Description: Use the test data to get the accuracy, test data samples 4000
 """
 import os
-
+from mtcnn.api.mtcnn_detect import Detector
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
@@ -115,9 +108,9 @@ for _iou in IOU_LIST:
                     y1 = int(y + h * 0.1)
                     x2 = int(x + w * 0.9)
                     y2 = int(y + h * 0.85)
-                    # 筛选与真实框IoU最大的预测框
-                    if len(boxes) == 0:
-                        pred_label = 0  # 如果没有预测框
+                    # 筛选与真实框IoU最大的预测框,这里设置测试数据一张图片只有一个人脸
+                    if len(boxes) != 1:
+                        pred_label = 0
                     else:
                         ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
                         max_iou = max(ious)
