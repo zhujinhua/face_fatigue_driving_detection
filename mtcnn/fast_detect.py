@@ -342,10 +342,14 @@ class Detector(object):
 
 
 if __name__ == '__main__':
-    img_path = r"./data/detect_img/06.jpg"
+    img_path = r"./data/detect_img/kang_5.jpg"
     img = Image.open(img_path)
-    detector = Detector("param_before/p_net.pt", "param_before/r_net.pt", "param_before/o_net.pt")
-    pnet_boxes, rnet_boxes, onet_boxes = detector.detect(img)
+    detector = Detector("param/p_net.pt", "param/r_net.pt", "param/o_net.pt")
+    detect_boxes = detector.detect(img)
+    if len(detect_boxes) == 0:
+        onet_boxes = detect_boxes
+    else:
+        pnet_boxes, rnet_boxes, onet_boxes = detect_boxes
     img = cv2.imread(img_path)
     for box in onet_boxes:
         x1 = int(box[0])

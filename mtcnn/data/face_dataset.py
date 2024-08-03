@@ -19,12 +19,12 @@ class FaceDataset(Dataset):
     def _read_annos(self):
         with open(os.path.join(self.path, "positive.txt")) as f:
             self.datasets.extend(f.readlines())
-
-        with open(os.path.join(self.path, "negative.txt")) as f:
-            self.datasets.extend(f.readlines())
-
-        with open(os.path.join(self.path, "part.txt")) as f:
-            self.datasets.extend(f.readlines())
+        if os.path.exists(os.path.join(self.path, "negative.txt")):
+            with open(os.path.join(self.path, "negative.txt")) as f:
+                self.datasets.extend(f.readlines())
+        if os.path.exists(os.path.join(self.path, "part.txt")):
+            with open(os.path.join(self.path, "part.txt")) as f:
+                self.datasets.extend(f.readlines())
 
     def __len__(self):
         return len(self.datasets)

@@ -5,6 +5,9 @@ from PIL import Image
 import traceback
 import os
 
+from mtcnn.data.add_noise import AddWhiteNoise
+os.environ['ALBUMENTATIONS_DISABLE_VERSION_CHECK'] = '1'
+
 DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 # 图像
 img_dir = os.path.join(DATA_ROOT, 'train')
@@ -17,6 +20,20 @@ save_dir = r"../train_data/MTCNN"
 
 # 为随机数种子做准备，使正样本，部分样本，负样本的比例为1：1：3
 float_num = [0.1, 0.1, 0.3, 0.5, 0.95, 0.95, 0.99, 0.99, 0.99, 0.99]
+import albumentations as A
+
+# 增加白噪声，调整照片敏感度
+transform = A.Compose([
+    AddWhiteNoise(noise_factor=0.08, p=0.3),
+    A.RandomBrightnessContrast(brightness_limit=(-0.2, 0), contrast_limit=(-0.2, 0), p=0.3),
+])
+
+
+def data_augmentation(image, transform):
+    image_np = np.array(image)
+    augmented = transform(image=image_np)
+    image_with_noise_np = augmented['image']
+    return Image.fromarray(image_with_noise_np)
 
 
 def gen_sample(face_size, stop_value):
@@ -176,6 +193,7 @@ def gen_sample(face_size, stop_value):
                 iou = tool.iou(box, np.array([cbox]))[0]
 
                 if iou > 0.7:
+                    img_crop = data_augmentation(img_crop, transform)
                     img_crop.save(os.path.join(positive_img_dir, "{0}.jpg".format(positive_count)))
                     anno_positive_file.write(
                         "positive/{0}.jpg {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}\n".format(
@@ -185,6 +203,7 @@ def gen_sample(face_size, stop_value):
                     anno_positive_file.flush()
                     positive_count += 1
                 elif 0.4 < iou < 0.6:
+                    img_crop = data_augmentation(img_crop, transform)
                     img_crop.save(os.path.join(part_img_dir, "{0}.jpg".format(part_count)))
                     anno_part_file.write(
                         "part/{0}.jpg {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12} {13} {14} {15}\n".format(
@@ -194,6 +213,7 @@ def gen_sample(face_size, stop_value):
                     anno_part_file.flush()
                     part_count += 1
                 elif iou < 0.2:
+                    img_crop = data_augmentation(img_crop, transform)
                     img_crop.save(os.path.join(negative_img_dir, "{0}.jpg".format(negative_count)))
                     anno_negative_file.write("negative/{0}.jpg 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0\n".format(negative_count))
                     anno_negative_file.flush()
@@ -208,8 +228,8 @@ def gen_sample(face_size, stop_value):
 if __name__ == '__main__':
     # 100000
     # P-Net
-    gen_sample(12, 10000)
+    gen_sample(12, 50000)
     # R-Net
-    gen_sample(24, 10000)
+    gen_sample(24, 50000)
     # O-Net
-    gen_sample(48, 10000)
+    gen_sample(48, 50000)
