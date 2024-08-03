@@ -1,5 +1,7 @@
 #! pip install pillow
+import os.path
 import time
+import platform
 
 from faceNet.face_api import face_validation
 from ultralytics import YOLO
@@ -7,17 +9,29 @@ import cv2
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
+
 # 加载中文字体
-# font_path = 'C:/Windows/Fonts/simhei.ttf'  # 替换为你的中文字体路径
-font_path = '/System/Library/Fonts/STHeiti Medium.ttc'
-font = ImageFont.truetype(font_path, 50)
-model = YOLO('../fatigue_driving/best.pt')
+def get_the_system_font():
+    if platform.system() == 'Windows':
+        font_path = 'C:/Windows/Fonts/simhei.ttf'  # Windows 的中文字体路径
+        font = ImageFont.truetype(font_path, 30)
+    elif platform.system() == 'Darwin':
+        font_path = '/System/Library/Fonts/STHeiti Medium.ttc'  # macOS 的中文字体路径
+        font = ImageFont.truetype(font_path, 50)
+    else:
+        raise OSError("Unsupported operating system")
+    return font
+
+
+CUR_DIR = os.path.dirname(os.path.abspath(__file__))
+font = get_the_system_font()
+model = YOLO(os.path.join(CUR_DIR, 'fatigue_driving', 'best.pt'))
 
 cap = cv2.VideoCapture(0)
 num = 0
 start_time = None
 elapsed_time = 0
-closed_eyes_duration = 2
+closed_eyes_duration = 10
 closed_eyes_detected = False
 tips = '您已疲劳驾驶, 车辆将开启自动驾驶模式!!!'
 while cap.isOpened():

@@ -1,9 +1,9 @@
-from face_validation import Face_Validation
-from face_validation import Face_DB_Operation
+from faceNet.face_validation import Face_Validation
+from faceNet.face_validation import Face_DB_Operation
 
 import cv2
 import os
-from api.mtcnn_detect import get_detect_face, get_mtcnn_detector
+from faceNet.api.mtcnn_detect import get_detect_face, get_mtcnn_detector
 from PIL import Image
 
 import time

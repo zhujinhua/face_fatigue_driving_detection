@@ -1,7 +1,7 @@
 from PIL import Image
 
 # 网络结构
-from nets.facenet import Facenet as facenet
+from faceNet.nets.facenet import Facenet as facenet
 from torchvision import transforms
 import torch
 import numpy as np
