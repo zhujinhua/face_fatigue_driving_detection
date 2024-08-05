@@ -4,16 +4,22 @@ Date: 2024/7/25
 Description: Use the test data to get the accuracy, test data samples 4000
 """
 import os
+
+import cv2
+
 from mtcnn.api.mtcnn_detect import Detector
 import torch
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score
 import numpy as np
 from PIL import Image
+import matplotlib.pyplot as plt
 
-SAMPLE_COUNT = 4000
-# IOU_LIST = [0.5, 0.7, 0.8, 0.9, 0.95]
-IOU_LIST = [0.95]
+SAMPLE_COUNT = 100
+IOU_LIST = [0.5, 0.7, 0.8, 0.9, 0.95, 1]
+
+
+# IOU_LIST = [0.95]
 
 
 class CelebATestDataset(Dataset):
@@ -73,8 +79,38 @@ def iou(box, gt_box):
     return iou
 
 
-detect_result = './'
-DATA_ROOT = '../CelebA'
+def draw_rectangle(img, output_path, boxes, color=(0, 0, 255)):
+    image = cv2.imread(img.filename)
+    for box in boxes:
+        x1 = int(box[0])
+        y1 = int(box[1])
+        x2 = int(box[2])
+        y2 = int(box[3])
+        cv2.rectangle(image, (x1, y1), (x2, y2), color=color, thickness=3)
+    cv2.imwrite(output_path, image)
+
+
+def plot_accuracies(iou_thresholds, accuracies):
+    plt.figure(figsize=(10, 6))
+    plt.plot(iou_thresholds, accuracies, marker='o', linestyle='-', color='b', label='Accuracy')
+    plt.xlabel('IoU Thresholds')
+    plt.ylabel('Accuracy')
+    plt.title('Face Detection Accuracy at Different IoU Thresholds')
+    plt.ylim([0, 1])
+    plt.grid(True)
+
+    # Annotate each point with the accuracy value
+    for i, acc in enumerate(accuracies):
+        plt.text(iou_thresholds[i], acc + 0.02, f'{acc:.3f}', ha='center', va='bottom')
+
+    plt.legend()
+    plt.show()
+
+
+detect_result = './test_result'
+more_result = './more_result'
+
+DATA_ROOT = '/Users/jhzhu/Downloads/software/pan.baidu/CelebA'
 test_data_path = os.path.join(DATA_ROOT, 'test')
 bbox_file = os.path.join(DATA_ROOT, 'Anno', 'list_bbox_celeba.txt')
 test_dataset = CelebATestDataset(img_dir=test_data_path, bbox_file=bbox_file)
@@ -84,51 +120,46 @@ test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False, collate_fn=
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 detector = Detector("../param/p_net.pt", "../param/r_net.pt", "../param/o_net.pt")
 
-for _iou in IOU_LIST:
-    all_true_labels = []
-    all_pred_labels = []
+# Processing test data once
+all_true_labels = []
+all_pred_labels_dict = {iou_thresh: [] for iou_thresh in IOU_LIST}
 
-    with torch.no_grad():
-        for images, ground_truth_box in test_loader:
-            # 使用 O-Net 进行人脸检测
-            batch_pnet_boxes, batch_rnet_boxes, batch_onet_boxes = detector.batch_detect(images)
+with torch.no_grad():
+    for images, ground_truth_box in test_loader:
+        batch_pnet_boxes, batch_rnet_boxes, batch_onet_boxes = detector.batch_detect(images)
 
-            for i in range(len(batch_onet_boxes)):
+        for i in range(len(batch_onet_boxes)):
+            if batch_onet_boxes[i].ndim == 1:
+                for iou_thresh in IOU_LIST:
+                    all_pred_labels_dict[iou_thresh].append(0)
+            else:
+                boxes = batch_onet_boxes[i][:, :4]
+                gt_box = np.array(ground_truth_box[i])
+                x = int(gt_box[0])
+                y = int(gt_box[1])
+                w = int(gt_box[2])
+                h = int(gt_box[3])
+                x1 = int(x + w * 0.12)
+                y1 = int(y + h * 0.1)
+                x2 = int(x + w * 0.9)
+                y2 = int(y + h * 0.85)
 
-                if batch_onet_boxes[i].ndim == 1:
-                    pred_label = 0
+                if len(boxes) != 1:
+                    for iou_thresh in IOU_LIST:
+                        all_pred_labels_dict[iou_thresh].append(0)
                 else:
-                    boxes = batch_onet_boxes[i][:, :4]
-                    gt_box = np.array(ground_truth_box[i])
-                    x = int(gt_box[0])
-                    y = int(gt_box[1])
-                    w = int(gt_box[2])
-                    h = int(gt_box[3])
-                    x1 = int(x + w * 0.12)
-                    y1 = int(y + h * 0.1)
-                    x2 = int(x + w * 0.9)
-                    y2 = int(y + h * 0.85)
-                    # 筛选与真实框IoU最大的预测框,这里设置测试数据一张图片只有一个人脸
-                    if len(boxes) != 1:
-                        pred_label = 0
-                    else:
-                        ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
-                        max_iou = max(ious)
-                        pred_label = 1 if max_iou > _iou else 0  # IoU大于阈值认为匹配正确
+                    ious = [iou(box, [x1, y1, x2, y2]) for box in boxes]
+                    max_iou = max(ious)
+                    for iou_thresh in IOU_LIST:
+                        pred_label = 1 if max_iou > iou_thresh else 0  # IoU大于阈值认为匹配正确
+                        all_pred_labels_dict[iou_thresh].append(pred_label)
+                        # draw_rectangle(images[i], os.path.join(detect_result, '%s_%s' % (iou_thresh, os.path.basename(images[i].filename))), boxes)
 
-                true_label = 1  # 每张图片只有一个真实框，标签为1
+            true_label = 1  # 每张图片只有一个真实框，标签为1
+            all_true_labels.append(true_label)
 
-                all_true_labels.append(true_label)
-                all_pred_labels.append(pred_label)
+# Calculate accuracy for each IoU threshold
+accuracies = [accuracy_score(all_true_labels, all_pred_labels_dict[iou_thresh]) for iou_thresh in IOU_LIST]
 
-    # 计算评估指标
-    accuracy = accuracy_score(all_true_labels, all_pred_labels)
-    # precision = precision_score(all_true_labels, all_pred_labels)
-    # recall = recall_score(all_true_labels, all_pred_labels)
-    # f1 = f1_score(all_true_labels, all_pred_labels)
-
-    print(f'IOU: {_iou}, Accuracy: {accuracy:.4f}')
-    # print(f'IOU: {i}, Precision: {precision:.4f}')
-    # print(f'IOU: {i}, Recall: {recall:.4f}')
-    # print(f'IOU: {i}, F1 Score: {f1:.4f}')
-
+# Plot the accuracies
+plot_accuracies(IOU_LIST, accuracies)
