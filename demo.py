@@ -44,6 +44,7 @@ while cap.isOpened():
     if num % 1 == 0:
         # BGR转RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        frame_rgb = cv2.GaussianBlur(frame_rgb, (5, 5), 0)
         # 1. 使用Pillow读取图像
         image = Image.fromarray(frame_rgb)
         # image.save('output_image3.png')
