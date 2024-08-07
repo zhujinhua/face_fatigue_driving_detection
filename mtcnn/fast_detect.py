@@ -342,7 +342,7 @@ class Detector(object):
 
 
 if __name__ == '__main__':
-    img_path = r"./data/detect_img/kang_5.jpg"
+    img_path = r"./data/detect_img/enhanced_face_image.jpg"
     img = Image.open(img_path)
     detector = Detector("param/p_net.pt", "param/r_net.pt", "param/o_net.pt")
     detect_boxes = detector.detect(img)
